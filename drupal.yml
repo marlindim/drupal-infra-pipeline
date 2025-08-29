@@ -1,0 +1,44 @@
+---
+- name: Drupal Setup
+  hosts: drupal_servers
+  become: yes
+  tasks:
+
+    - name: Update packages on RedHat-based systems
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Update packages on Debian-based systems
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: dist
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Install Apache, PHP, and dependencies on RedHat-based systems
+      ansible.builtin.yum:
+        name:
+          - httpd
+          - php
+          - php-mysqlnd
+          - php-gd
+          - php-xml
+          - php-mbstring
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Install Apache, PHP, and dependencies on Debian-based systems
+      ansible.builtin.apt:
+        name:
+          - apache2
+          - php
+          - php-mysql
+          - php-gd
+          - php-xml
+          - php-mbstring
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    # Add your database connection configuration and Drupal deployment tasks below
+
