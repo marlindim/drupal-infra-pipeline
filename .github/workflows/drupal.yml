@@ -27,7 +27,7 @@ jobs:
         run: docker build -t my-drupal-image:latest .
 
       - name: Tag Docker image
-        run: docker tag my-drupal-image:latest ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+        run: docker tag my-drupal-image:latest austinokeke/my-drupal-image:latest
 
       - name: Push Docker image to Docker Hub
         run: docker push ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
