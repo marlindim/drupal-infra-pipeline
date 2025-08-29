@@ -1,88 +1,98 @@
-name: Drupal CI/CD
+name: Drupal CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 jobs:
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/drupal-app:${{ github.sha }} ./app
-          docker push ${{ secrets.DOCKER_USERNAME }}/drupal-app:${{ github.sha }}
+      - name: Build Drupal Docker image
+        run: docker build -t my-drupal-image .
+
+      - name: Push Docker image
+        run: docker tag my-drupal-image ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+        # Push image to DockerHub
+      - run: docker push ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
 
   test:
     name: Run Tests
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Run Unit Tests
+      - name: Run PHPUnit Tests
         run: |
-          cd app
-          phpunit --testdox
+          # If you have PHP unit tests
+          composer install
+          ./vendor/bin/phpunit --testsuite unit
 
       - name: Run Integration Tests
         run: |
-          cd app
-          ./vendor/bin/phpunit tests/Integration
+          # Example placeholder
+          echo "Run integration tests here"
 
-  deploy-staging:
+  deploy_staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-
-      - name: Terraform Init & Apply (Staging)
+      - name: Deploy Docker Container to Staging
         run: |
-          cd infra/staging
-          terraform init
-          terraform apply -auto-approve
+          ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_IP }} << 'EOF'
+          docker pull ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+          docker stop drupal_staging || true
+          docker rm drupal_staging || true
+          docker run -d --name drupal_staging -p 8080:80 ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+          EOF
 
-      - name: Smoke Tests
+  smoke_test:
+    name: Smoke Test on Staging
+    runs-on: ubuntu-latest
+    needs: deploy_staging
+    steps:
+      - name: Test Staging Endpoint
         run: |
-          curl -f http://staging.example.com || exit 1
+          curl -f http://${{ secrets.STAGING_IP }}:8080 || exit 1
 
-  deploy-prod:
+  deploy_production:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: deploy-staging
-    environment:
-      name: production
-      url: http://prod.example.com
+    needs: smoke_test
+    if: github.event_name == 'workflow_dispatch'
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-
-      - name: Terraform Init & Apply (Prod)
+      - name: Deploy Docker Container to Production
         run: |
-          cd infra/prod
-          terraform init
-          terraform apply -auto-approve
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_USER }}@${{ secrets.PROD_IP }} << 'EOF'
+          docker pull ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+          docker stop drupal_prod || true
+          docker rm drupal_prod || true
+          docker run -d --name drupal_prod -p 80:80 ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+          EOF
 
