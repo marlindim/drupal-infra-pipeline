@@ -57,6 +57,7 @@ jobs:
             docker stop drupal || true
             docker rm drupal || true
             docker run -d --name drupal -p 80:80 ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+            docker system prune -af || true
 
   deploy-prod:
     name: Deploy to Production
@@ -75,4 +76,5 @@ jobs:
             docker stop drupal || true
             docker rm drupal || true
             docker run -d --name drupal -p 80:80 ${{ secrets.DOCKER_USERNAME }}/my-drupal-image:latest
+            docker system prune -af || true
 
